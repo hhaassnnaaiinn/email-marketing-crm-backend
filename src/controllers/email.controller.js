@@ -2,6 +2,7 @@ const AwsSettings = require('../models/aws-settings.model');
 const EmailService = require('../services/email.service');
 const EmailLog = require('../models/email-log.model');
 const Unsubscribe = require('../models/unsubscribe.model');
+const Contact = require('../models/contact.model');
 const { 
   getUnsubscribeErrorPage, 
   getUnsubscribeConfirmationPage, 
@@ -152,20 +153,21 @@ const getEmailHistory = async (req, res) => {
  */
 const unsubscribe = async (req, res) => {
   try {
-    const { email, userId, reason } = req.body;
+    const { email, contactId, reason } = req.body;
     
-    if (!email || !userId) {
+    if (!email || !contactId) {
       return res.status(400).json({
-        message: 'Email and userId are required'
+        message: 'Email and contactId are required'
       });
     }
 
     // Add to unsubscribe list
     await Unsubscribe.findOneAndUpdate(
-      { email, userId },
+      { email, contactId },
       { 
         email,
-        userId,
+        contactId,
+        userId: req.user?.userId, // Optional, for admin tracking
         reason,
         unsubscribedAt: new Date()
       },
@@ -190,23 +192,41 @@ const unsubscribe = async (req, res) => {
  */
 const directUnsubscribe = async (req, res) => {
   try {
-    const { email, userId, reason } = req.body;
+    const { email, contactId, userId, reason } = req.body;
     
-    if (!email || !userId) {
-      return res.status(400).send(getUnsubscribeErrorPage('Email and userId are required.'));
+    if (!email) {
+      return res.status(400).send(getUnsubscribeErrorPage('Email is required.'));
     }
 
-    // Add to unsubscribe list
-    await Unsubscribe.findOneAndUpdate(
-      { email, userId },
-      { 
-        email,
-        userId,
-        reason: reason || 'Direct unsubscribe from email',
-        unsubscribedAt: new Date()
-      },
-      { upsert: true, new: true }
-    );
+    let unsubscribeData = {
+      email,
+      reason: reason || 'Direct unsubscribe from email',
+      unsubscribedAt: new Date()
+    };
+
+    // Support both new format (contactId) and old format (userId) for backward compatibility
+    if (contactId) {
+      // New format: use contactId
+      unsubscribeData.contactId = contactId;
+      unsubscribeData.userId = req.user?.userId; // Optional, for admin tracking
+      
+      await Unsubscribe.findOneAndUpdate(
+        { email, contactId },
+        unsubscribeData,
+        { upsert: true, new: true }
+      );
+    } else if (userId) {
+      // Old format: use userId (for backward compatibility)
+      unsubscribeData.userId = userId;
+      
+      await Unsubscribe.findOneAndUpdate(
+        { email, userId },
+        unsubscribeData,
+        { upsert: true, new: true }
+      );
+    } else {
+      return res.status(400).send(getUnsubscribeErrorPage('Contact ID or User ID is required.'));
+    }
 
     // Return HTML success page
     res.send(getUnsubscribeSuccessPage(email));
@@ -221,15 +241,28 @@ const directUnsubscribe = async (req, res) => {
  */
 const checkUnsubscribeStatus = async (req, res) => {
   try {
-    const { email, userId } = req.query;
+    const { email, contactId, userId } = req.query;
     
-    if (!email || !userId) {
+    if (!email) {
       return res.status(400).json({
-        message: 'Email and userId are required'
+        message: 'Email is required'
       });
     }
 
-    const unsubscribe = await Unsubscribe.findOne({ email, userId });
+    let unsubscribe = null;
+
+    // Support both new format (contactId) and old format (userId) for backward compatibility
+    if (contactId) {
+      // New format: check by contactId
+      unsubscribe = await Unsubscribe.findOne({ email, contactId });
+    } else if (userId) {
+      // Old format: check by userId (for backward compatibility)
+      unsubscribe = await Unsubscribe.findOne({ email, userId });
+    } else {
+      return res.status(400).json({
+        message: 'Contact ID or User ID is required'
+      });
+    }
     
     res.json({
       isUnsubscribed: !!unsubscribe,
@@ -259,10 +292,21 @@ const sendEmail = async (req, res) => {
       });
     }
 
-    // Check if user is unsubscribed
-    const isUnsubscribed = await Unsubscribe.findOne({ 
+    // Find the contact to get their ID
+    const contact = await Contact.findOne({ 
       email: to,
-      userId: req.user.userId 
+      createdBy: req.user.userId 
+    });
+
+    if (!contact) {
+      return res.status(400).json({
+        message: 'Contact not found for this email address'
+      });
+    }
+
+    // Check if contact is unsubscribed
+    const isUnsubscribed = await Unsubscribe.findOne({ 
+      contactId: contact._id
     });
 
     if (isUnsubscribed) {
@@ -281,8 +325,8 @@ const sendEmail = async (req, res) => {
       });
     }
 
-    // Add unsubscribe link to email HTML with backend route
-    const unsubscribeLink = `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/email/unsubscribe?email=${encodeURIComponent(to)}&userId=${req.user.userId}`;
+    // Add unsubscribe link to email HTML with contact ID
+    const unsubscribeLink = `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/email/unsubscribe?email=${encodeURIComponent(to)}&contactId=${contact._id}`;
     const htmlWithUnsubscribe = html + `
       <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666; text-align: center;">
         <p style="margin: 0; padding: 10px 0;">
@@ -324,57 +368,6 @@ const sendEmail = async (req, res) => {
     });
   } catch (error) {
     console.error('Email sending failed:', error);
-    
-    // Log failed email
-    try {
-      const log = await logEmail({
-        user: req.user.userId,
-        to: req.body.to,
-        subject: req.body.subject,
-        status: 'failed',
-        messageId: 'N/A',
-        error: error.message,
-        type: 'single'
-      });
-      console.log('Failed email logged:', log._id);
-    } catch (logError) {
-      console.error('Failed to log failed email:', logError);
-    }
-
-    // Handle different types of AWS SES errors gracefully
-    if (error.message.includes('Email address is not verified')) {
-      return res.status(400).json({
-        message: 'Email address is not verified in AWS SES. Please verify the email address in your AWS SES console.',
-        error: error.message,
-        type: 'verification_required'
-      });
-    }
-    
-    if (error.message.includes('MessageRejected')) {
-      return res.status(400).json({
-        message: 'Email was rejected by AWS SES. Please check your AWS SES configuration and email addresses.',
-        error: error.message,
-        type: 'message_rejected'
-      });
-    }
-    
-    if (error.message.includes('InvalidParameterValue')) {
-      return res.status(400).json({
-        message: 'Invalid email parameters. Please check the email address and content.',
-        error: error.message,
-        type: 'invalid_parameters'
-      });
-    }
-    
-    if (error.message.includes('QuotaExceeded')) {
-      return res.status(429).json({
-        message: 'Email sending quota exceeded. Please try again later.',
-        error: error.message,
-        type: 'quota_exceeded'
-      });
-    }
-
-    // For other errors, return 500
     res.status(500).json({
       message: 'Failed to send email',
       error: error.message
@@ -413,18 +406,48 @@ const sendBulkEmails = async (req, res) => {
       });
     }
 
+    // Get all contacts for this user
+    const contacts = await Contact.find({ 
+      email: { $in: recipients },
+      createdBy: req.user.userId 
+    }).lean();
+
+    // Create a map of email to contact
+    const emailToContact = new Map(contacts.map(contact => [contact.email, contact]));
+
+    // Get all unsubscribed contact IDs for this user
+    const unsubscribedContacts = await Unsubscribe.find({ 
+      contactId: { $in: contacts.map(c => c._id) }
+    }).select('contactId').lean();
+    const unsubscribedContactIds = new Set(unsubscribedContacts.map(u => u.contactId.toString()));
+
+    // Filter out unsubscribed recipients
+    const validRecipients = recipients.filter(recipient => {
+      const contact = emailToContact.get(recipient);
+      return contact && !unsubscribedContactIds.has(contact._id.toString());
+    });
+    
+    if (validRecipients.length === 0) {
+      return res.status(400).json({
+        message: 'All recipients have unsubscribed from emails'
+      });
+    }
+
     // Process emails in batches
     const results = {
       successful: [],
-      failed: []
+      failed: [],
+      unsubscribed: recipients.length - validRecipients.length
     };
 
-    for (let i = 0; i < recipients.length; i += batchSize) {
-      const batch = recipients.slice(i, i + batchSize);
+    for (let i = 0; i < validRecipients.length; i += batchSize) {
+      const batch = validRecipients.slice(i, i + batchSize);
       const batchPromises = batch.map(async (recipient) => {
         try {
+          const contact = emailToContact.get(recipient);
+          
           // Add personalized unsubscribe link for each recipient
-          const unsubscribeLink = `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/email/unsubscribe?email=${encodeURIComponent(recipient)}&userId=${req.user.userId}`;
+          const unsubscribeLink = `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/email/unsubscribe?email=${encodeURIComponent(recipient)}&contactId=${contact._id}`;
           const htmlWithUnsubscribe = html + `
             <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666; text-align: center;">
               <p style="margin: 0; padding: 10px 0;">
@@ -505,7 +528,7 @@ const sendBulkEmails = async (req, res) => {
     }
 
     res.json({
-      message: 'Bulk email processing completed',
+      message: `Bulk email processing completed. ${results.unsubscribed} recipients were unsubscribed and filtered out.`,
       results
     });
   } catch (error) {
@@ -625,21 +648,31 @@ const sendTestEmail = async (req, res) => {
  */
 const unsubscribePage = async (req, res) => {
   try {
-    const { email, userId } = req.query;
+    const { email, contactId, userId } = req.query;
     
-    if (!email || !userId) {
-      return res.status(400).send(getUnsubscribeErrorPage('The unsubscribe link is missing required parameters.'));
+    if (!email) {
+      return res.status(400).send(getUnsubscribeErrorPage('The unsubscribe link is missing the email parameter.'));
     }
 
-    // Check if already unsubscribed
-    const existingUnsubscribe = await Unsubscribe.findOne({ email, userId });
+    let unsubscribeRecord = null;
+
+    // Support both new format (contactId) and old format (userId) for backward compatibility
+    if (contactId) {
+      // New format: check by contactId
+      unsubscribeRecord = await Unsubscribe.findOne({ email, contactId });
+    } else if (userId) {
+      // Old format: check by userId (for backward compatibility)
+      unsubscribeRecord = await Unsubscribe.findOne({ email, userId });
+    } else {
+      return res.status(400).send(getUnsubscribeErrorPage('The unsubscribe link is missing required parameters.'));
+    }
     
-    if (existingUnsubscribe) {
+    if (unsubscribeRecord) {
       return res.send(getAlreadyUnsubscribedPage(email));
     }
 
     // Show unsubscribe confirmation page
-    res.send(getUnsubscribeConfirmationPage(email, userId));
+    res.send(getUnsubscribeConfirmationPage(email, contactId || userId));
   } catch (error) {
     console.error('Unsubscribe page error:', error);
     res.status(500).send(getServerErrorPage());

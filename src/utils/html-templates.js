@@ -22,7 +22,7 @@ const getUnsubscribeErrorPage = (message = 'Invalid Unsubscribe Link') => `
   </html>
 `;
 
-const getUnsubscribeConfirmationPage = (email, userId) => `
+const getUnsubscribeConfirmationPage = (email, id) => `
   <html>
     <head>
       <title>Unsubscribe Confirmation</title>
@@ -44,7 +44,8 @@ const getUnsubscribeConfirmationPage = (email, userId) => `
         
         <form method="POST" action="/api/email/direct-unsubscribe" style="margin: 20px 0;">
           <input type="hidden" name="email" value="${email}">
-          <input type="hidden" name="userId" value="${userId}">
+          <input type="hidden" name="contactId" value="${id}">
+          <input type="hidden" name="userId" value="${id}">
           <input type="hidden" name="reason" value="Unsubscribed via email link">
           
           <button type="submit" class="btn btn-danger">Yes, Unsubscribe Me</button>

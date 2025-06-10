@@ -1,6 +1,7 @@
 const fs = require('fs');
 const csv = require('csv-parser');
 const Contact = require('../models/contact.model');
+const Unsubscribe = require('../models/unsubscribe.model');
 
 // Allowed fields for contact updates
 const ALLOWED_FIELDS = [
@@ -34,7 +35,21 @@ const getAllContacts = async (req, res) => {
       .find({ createdBy: req.user.userId })
       .sort({ createdAt: -1 });
 
-    return res.json(contacts);
+    // Get unsubscribed contact IDs for this user's contacts
+    const contactIds = contacts.map(contact => contact._id);
+    const unsubscribedContacts = await Unsubscribe.find({ 
+      contactId: { $in: contactIds }
+    }).select('contactId').lean();
+    const unsubscribedContactIds = new Set(unsubscribedContacts.map(u => u.contactId.toString()));
+
+    // Add unsubscribed status to each contact
+    const contactsWithStatus = contacts.map(contact => {
+      const contactObj = contact.toObject();
+      contactObj.unsubscribed = unsubscribedContactIds.has(contact._id.toString());
+      return contactObj;
+    });
+
+    return res.json(contactsWithStatus);
   } catch (err) {
     console.error('Get all contacts error:', err);
     return res.status(500).json({ message: 'Server error' });
@@ -54,7 +69,16 @@ const createContact = async (req, res) => {
 
     const contact = new Contact({ ...data, createdBy: req.user.userId });
     await contact.save();
-    return res.status(201).json(contact);
+
+    // Check if contact is unsubscribed
+    const isUnsubscribed = await Unsubscribe.findOne({ 
+      contactId: contact._id
+    });
+
+    const contactObj = contact.toObject();
+    contactObj.unsubscribed = !!isUnsubscribed;
+
+    return res.status(201).json(contactObj);
   } catch (err) {
     console.error('Create contact error:', err);
     if (err.code === 11000) { // duplicate key
@@ -81,7 +105,24 @@ const updateContact = async (req, res) => {
     );
 
     if (!contact) return res.status(404).json({ message: 'Contact not found' });
-    return res.json(contact);
+
+    // Handle unsubscribe status if provided in request body
+    if (req.body.unsubscribed === false) {
+      // Remove from unsubscribe list if unsubscribed is set to false
+      await Unsubscribe.findOneAndDelete({ 
+        contactId: contact._id
+      });
+    }
+
+    // Check if contact is unsubscribed (after potential removal)
+    const isUnsubscribed = await Unsubscribe.findOne({ 
+      contactId: contact._id
+    });
+
+    const contactObj = contact.toObject();
+    contactObj.unsubscribed = !!isUnsubscribed;
+
+    return res.json(contactObj);
   } catch (err) {
     console.error('Update contact error:', err);
     return res.status(500).json({ message: 'Server error' });

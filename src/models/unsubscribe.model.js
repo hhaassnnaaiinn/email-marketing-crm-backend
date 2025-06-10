@@ -8,6 +8,11 @@ const unsubscribeSchema = new mongoose.Schema({
     lowercase: true,
     trim: true
   },
+  contactId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Contact', 
+    required: true 
+  },
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
@@ -25,5 +30,6 @@ const unsubscribeSchema = new mongoose.Schema({
 
 // Create index for faster lookups
 unsubscribeSchema.index({ email: 1, userId: 1 });
+unsubscribeSchema.index({ contactId: 1 });
 
 module.exports = mongoose.model('Unsubscribe', unsubscribeSchema); 

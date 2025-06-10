@@ -176,14 +176,15 @@ const sendCampaign = async (req, res) => {
       return res.status(400).json({ message: 'AWS settings not configured or not verified' });
     }
 
-    // Get unsubscribed emails
-    const unsubscribed = await Unsubscribe.find({ user: req.user.userId })
-      .select('email')
-      .lean();
-    const unsubscribedEmails = new Set(unsubscribed.map(u => u.email));
+    // Get unsubscribed contact IDs
+    const contactIds = campaign.contacts.map(contact => contact._id);
+    const unsubscribed = await Unsubscribe.find({ 
+      contactId: { $in: contactIds }
+    }).select('contactId').lean();
+    const unsubscribedContactIds = new Set(unsubscribed.map(u => u.contactId.toString()));
 
     // Filter out unsubscribed contacts
-    const validContacts = campaign.contacts.filter(contact => !unsubscribedEmails.has(contact.email));
+    const validContacts = campaign.contacts.filter(contact => !unsubscribedContactIds.has(contact._id.toString()));
     
     if (validContacts.length === 0) {
       return res.status(400).json({ message: 'No valid recipients found' });
@@ -202,7 +203,7 @@ const sendCampaign = async (req, res) => {
       const batchPromises = batch.map(async (contact) => {
         try {
           // Add personalized unsubscribe link for each contact
-          const unsubscribeLink = `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/email/unsubscribe?email=${encodeURIComponent(contact.email)}&userId=${req.user.userId}`;
+          const unsubscribeLink = `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/email/unsubscribe?email=${encodeURIComponent(contact.email)}&contactId=${contact._id}`;
           const htmlWithUnsubscribe = campaign.template.body + `
             <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666; text-align: center;">
               <p style="margin: 0; padding: 10px 0;">
@@ -270,7 +271,7 @@ const sendCampaign = async (req, res) => {
     await campaign.save();
 
     res.json({
-      message: 'Campaign sent successfully',
+      message: `Campaign sent successfully. ${results.unsubscribed} recipients were unsubscribed and filtered out.`,
       results
     });
   } catch (error) {
