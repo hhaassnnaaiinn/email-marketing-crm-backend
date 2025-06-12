@@ -403,6 +403,7 @@
    "secretAccessKey": "***hidden***",
    "region": "us-east-1",
    "fromEmail": "noreply@example.com",
+   "fromName": "Example Corp",
    "isVerified": true,
    "userId": "user-id",
    "createdAt": "2024-01-01T00:00:00.000Z"
@@ -421,7 +422,8 @@
    "accessKeyId": "AKIA...",
    "secretAccessKey": "your-secret-key",
    "region": "us-east-1",
-   "fromEmail": "noreply@example.com"
+   "fromEmail": "noreply@example.com",
+   "fromName": "Example Corp"
  }
  ```
  
@@ -663,6 +665,7 @@
    "secretAccessKey": "String (required)",
    "region": "String (required)",
    "fromEmail": "String (required)",
+   "fromName": "String (optional)",
    "isVerified": "Boolean (default: false)",
    "userId": "ObjectId (ref: User)",
    "createdAt": "Date"

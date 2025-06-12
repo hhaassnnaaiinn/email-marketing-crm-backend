@@ -15,6 +15,7 @@ const getAwsSettings = async (req, res) => {
     const safeSettings = {
       region: settings.region,
       fromEmail: settings.fromEmail,
+      fromName: settings.fromName,
       isVerified: settings.isVerified,
       updatedAt: settings.updatedAt,
     };
@@ -31,10 +32,10 @@ const getAwsSettings = async (req, res) => {
  */
 const updateAwsSettings = async (req, res) => {
   try {
-    const { accessKeyId, secretAccessKey, region, fromEmail } = req.body;
+    const { accessKeyId, secretAccessKey, region, fromEmail, fromName } = req.body;
 
     if (!accessKeyId || !secretAccessKey || !region || !fromEmail) {
-      return res.status(400).json({ message: 'All fields are required' });
+      return res.status(400).json({ message: 'All fields are required except fromName' });
     }
 
     // Create SES client to verify credentials
@@ -84,6 +85,7 @@ const updateAwsSettings = async (req, res) => {
         secretAccessKey,
         region,
         fromEmail,
+        fromName: fromName || '',
         isVerified: true,
       },
       { upsert: true, new: true }
@@ -93,6 +95,7 @@ const updateAwsSettings = async (req, res) => {
     const safeSettings = {
       region: settings.region,
       fromEmail: settings.fromEmail,
+      fromName: settings.fromName,
       isVerified: settings.isVerified,
       updatedAt: settings.updatedAt,
     };
@@ -127,8 +130,13 @@ const sendTestEmail = async (req, res) => {
       },
     });
 
+    // Format the source with name if available
+    const source = settings.fromName && settings.fromName.trim() 
+      ? `"${settings.fromName}" <${settings.fromEmail}>`
+      : settings.fromEmail;
+
     const command = new SendEmailCommand({
-      Source: settings.fromEmail,
+      Source: source,
       Destination: {
         ToAddresses: [email],
       },
@@ -143,6 +151,7 @@ const sendTestEmail = async (req, res) => {
               <h1>Test Email</h1>
               <p>This is a test email from your CRM system.</p>
               <p>If you received this email, your AWS SES setup is working correctly!</p>
+              <p>Sender: ${settings.fromName || 'No name set'} (${settings.fromEmail})</p>
             `,
             Charset: 'UTF-8',
           },

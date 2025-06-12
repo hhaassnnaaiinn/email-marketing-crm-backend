@@ -31,8 +31,13 @@ class EmailService {
   static async sendEmail({ to, subject, html, awsSettings }) {
     const ses = this.getSESClient(awsSettings);
 
+    // Format the source with name if available
+    const source = awsSettings.fromName && awsSettings.fromName.trim() 
+      ? `"${awsSettings.fromName}" <${awsSettings.fromEmail}>`
+      : awsSettings.fromEmail;
+
     const params = {
-      Source: awsSettings.fromEmail,
+      Source: source,
       Destination: {
         ToAddresses: [to],
       },
@@ -80,13 +85,18 @@ class EmailService {
       total: recipients.length,
     };
 
+    // Format the source with name if available
+    const source = awsSettings.fromName && awsSettings.fromName.trim() 
+      ? `"${awsSettings.fromName}" <${awsSettings.fromEmail}>`
+      : awsSettings.fromEmail;
+
     // Process recipients in batches
     for (let i = 0; i < recipients.length; i += batchSize) {
       const batch = recipients.slice(i, i + batchSize);
       const batchPromises = batch.map(async (recipient) => {
         try {
           const params = {
-            Source: awsSettings.fromEmail,
+            Source: source,
             Destination: {
               ToAddresses: [recipient.email],
             },
@@ -146,6 +156,7 @@ class EmailService {
         <ul>
           <li>Region: ${awsSettings.region}</li>
           <li>From Email: ${awsSettings.fromEmail}</li>
+          <li>From Name: ${awsSettings.fromName || 'Not set'}</li>
           <li>Verified: ${awsSettings.isVerified ? 'Yes' : 'No'}</li>
         </ul>
       `,

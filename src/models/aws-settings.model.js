@@ -24,6 +24,11 @@ const awsSettingsSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  fromName: {
+    type: String,
+    required: false,
+    default: '',
+  },
   isVerified: {
     type: Boolean,
     default: false,
