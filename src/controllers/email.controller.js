@@ -4,6 +4,10 @@ const EmailLog = require('../models/email-log.model');
 const Unsubscribe = require('../models/unsubscribe.model');
 const Contact = require('../models/contact.model');
 const { 
+  replaceMergeTags, 
+  replaceSubjectMergeTags
+} = require('../utils/merge-tags');
+const { 
   getUnsubscribeErrorPage, 
   getUnsubscribeConfirmationPage, 
   getAlreadyUnsubscribedPage, 
@@ -325,9 +329,14 @@ const sendEmail = async (req, res) => {
       });
     }
 
+    // Replace merge tags in subject and content with contact data
+    const personalizedSubject = replaceSubjectMergeTags(subject, contact);
+
+    const personalizedHtml = replaceMergeTags(html, contact);
+
     // Add unsubscribe link to email HTML with contact ID
     const unsubscribeLink = `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/email/unsubscribe?email=${encodeURIComponent(to)}&contactId=${contact._id}`;
-    const htmlWithUnsubscribe = html + `
+    const htmlWithUnsubscribe = personalizedHtml + `
       <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666; text-align: center;">
         <p style="margin: 0; padding: 10px 0;">
           You received this email because you're subscribed to our mailing list.
@@ -346,7 +355,7 @@ const sendEmail = async (req, res) => {
     // Send the email
     const result = await EmailService.sendEmail({
       to,
-      subject,
+      subject: personalizedSubject,
       html: htmlWithUnsubscribe,
       awsSettings,
     });
@@ -355,7 +364,7 @@ const sendEmail = async (req, res) => {
     const log = await logEmail({
       user: req.user.userId,
       to,
-      subject,
+      subject: personalizedSubject,
       status: 'sent',
       messageId: result.messageId,
       type: 'single'
@@ -446,9 +455,14 @@ const sendBulkEmails = async (req, res) => {
         try {
           const contact = emailToContact.get(recipient);
           
+          // Replace merge tags in subject and content with contact data
+          const personalizedSubject = replaceSubjectMergeTags(subject, contact);
+
+          const personalizedHtml = replaceMergeTags(html, contact);
+          
           // Add personalized unsubscribe link for each recipient
           const unsubscribeLink = `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/email/unsubscribe?email=${encodeURIComponent(recipient)}&contactId=${contact._id}`;
-          const htmlWithUnsubscribe = html + `
+          const htmlWithUnsubscribe = personalizedHtml + `
             <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666; text-align: center;">
               <p style="margin: 0; padding: 10px 0;">
                 You received this email because you're subscribed to our mailing list.
@@ -466,7 +480,7 @@ const sendBulkEmails = async (req, res) => {
 
           const result = await EmailService.sendEmail({
             to: recipient,
-            subject,
+            subject: personalizedSubject,
             html: htmlWithUnsubscribe,
             awsSettings,
           });
@@ -475,7 +489,7 @@ const sendBulkEmails = async (req, res) => {
           await logEmail({
             user: req.user.userId,
             to: recipient,
-            subject,
+            subject: personalizedSubject,
             status: 'sent',
             messageId: result.messageId,
             type: 'bulk'

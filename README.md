@@ -13,6 +13,7 @@
     - [Campaigns](#campaign-endpoints)
     - [AWS Settings](#aws-settings-endpoints)
     - [Email](#email-endpoints)
+    - [Images](#image-endpoints)
  
  ## Overview
  
@@ -601,6 +602,167 @@
  }
  ```
  
+ ### Image Endpoints
+ 
+ **Note:** All image endpoints require authentication. Include the JWT token in the Authorization header.
+ 
+ #### Upload Single Image
+ ```http
+ POST /images/upload
+ Authorization: Bearer <token>
+ Content-Type: multipart/form-data
+ ```
+ 
+ **Request Body:**
+ - `image`: Image file (JPEG, PNG, GIF, WebP, SVG)
+ - Maximum file size: 5MB
+ 
+ **Response:**
+ ```json
+ {
+   "success": true,
+   "message": "Image uploaded successfully",
+   "data": {
+     "url": "https://your-bucket.s3.us-east-1.amazonaws.com/images/uuid.jpg",
+     "fileName": "images/uuid.jpg",
+     "originalName": "photo.jpg",
+     "size": 123456,
+     "uploadedBy": {
+       "userId": "user-id",
+       "email": "user@example.com"
+     },
+     "uploadedAt": "2024-01-01T12:00:00.000Z"
+   }
+ }
+ ```
+ 
+ #### Upload Multiple Images
+ ```http
+ POST /images/upload-multiple
+ Authorization: Bearer <token>
+ Content-Type: multipart/form-data
+ ```
+ 
+ **Request Body:**
+ - `images`: Array of image files (JPEG, PNG, GIF, WebP, SVG)
+ - Maximum 10 files
+ - Maximum file size per file: 5MB
+ 
+ **Response:**
+ ```json
+ {
+   "success": true,
+   "message": "3 images uploaded successfully",
+   "data": [
+     {
+       "url": "https://your-bucket.s3.us-east-1.amazonaws.com/images/uuid1.jpg",
+       "fileName": "images/uuid1.jpg",
+       "originalName": "photo1.jpg",
+       "size": 123456,
+       "uploadedBy": {
+         "userId": "user-id",
+         "email": "user@example.com"
+       },
+       "uploadedAt": "2024-01-01T12:00:00.000Z"
+     },
+     {
+       "url": "https://your-bucket.s3.us-east-1.amazonaws.com/images/uuid2.jpg",
+       "fileName": "images/uuid2.jpg",
+       "originalName": "photo2.jpg",
+       "size": 789012,
+       "uploadedBy": {
+         "userId": "user-id",
+         "email": "user@example.com"
+       },
+       "uploadedAt": "2024-01-01T12:00:00.000Z"
+     }
+   ]
+ }
+ ```
+ 
+ #### Delete Image
+ ```http
+ DELETE /images/:fileName
+ Authorization: Bearer <token>
+ ```
+ 
+ **Parameters:**
+ - `fileName`: The S3 file name/key (e.g., `images/uuid.jpg`)
+ 
+ **Response:**
+ ```json
+ {
+   "success": true,
+   "message": "Image deleted successfully",
+   "data": {
+     "success": true,
+     "message": "Image deleted successfully",
+     "deletedBy": {
+       "userId": "user-id",
+       "email": "user@example.com"
+     },
+     "deletedAt": "2024-01-01T12:00:00.000Z"
+   }
+ }
+ ```
+ 
+ #### Get Upload Information
+ ```http
+ GET /images/info
+ Authorization: Bearer <token>
+ ```
+ 
+ **Response:**
+ ```json
+ {
+   "success": true,
+   "data": {
+     "maxFileSize": "5MB",
+     "allowedTypes": ["JPEG", "PNG", "GIF", "WebP", "SVG"],
+     "bucketName": "your-bucket-name",
+     "region": "us-east-1",
+     "authenticatedUser": {
+       "userId": "user-id",
+       "email": "user@example.com"
+     }
+   }
+ }
+ ```
+ 
+ **Image Upload Error Responses:**
+ 
+ **Invalid File Type (400):**
+ ```json
+ {
+   "success": false,
+   "message": "Invalid file type. Only images (JPEG, PNG, GIF, WebP, SVG) are allowed."
+ }
+ ```
+ 
+ **File Too Large (400):**
+ ```json
+ {
+   "success": false,
+   "message": "File size too large. Maximum size is 5MB."
+ }
+ ```
+ 
+ **No File Provided (400):**
+ ```json
+ {
+   "success": false,
+   "message": "No image file provided"
+ }
+ ```
+ 
+ **Too Many Files (400):**
+ ```json
+ {
+   "success": false,
+   "message": "Too many files. Maximum 10 files allowed."
+ }
+ ```
+ 
  ---
  
  ## Data Models
@@ -711,6 +873,12 @@
  JWT_SECRET=your-jwt-secret-key
  BACKEND_URL=http://localhost:5000
  FRONTEND_URL=http://localhost:3000
+ 
+ # AWS S3 Configuration (for image uploads)
+ AWS_ACCESS_KEY_ID=your_aws_access_key_id
+ AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
+ AWS_REGION=us-east-1
+ AWS_S3_BUCKET_NAME=your-s3-bucket-name
  ```
  
  ---

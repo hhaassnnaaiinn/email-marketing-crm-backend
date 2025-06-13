@@ -26,6 +26,7 @@ const contactRoutes = require('./routes/contact.routes');
 const templateRoutes = require('./routes/template.routes');
 const awsSettingsRoutes = require('./routes/aws-settings.routes');
 const emailRoutes = require('./routes/email.routes');
+const imageRoutes = require('./routes/image.routes');
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -35,6 +36,7 @@ app.use('/api/contacts', contactRoutes);
 app.use('/api/templates', templateRoutes);
 app.use('/api/aws-settings', awsSettingsRoutes);
 app.use('/api/email', emailRoutes);
+app.use('/api/images', imageRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
