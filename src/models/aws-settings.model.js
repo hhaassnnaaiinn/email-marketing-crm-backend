@@ -29,6 +29,11 @@ const awsSettingsSchema = new mongoose.Schema({
     required: false,
     default: '',
   },
+  replyToEmail: {
+    type: String,
+    required: false,
+    default: '',
+  },
   isVerified: {
     type: Boolean,
     default: false,

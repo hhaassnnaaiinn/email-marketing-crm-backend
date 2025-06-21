@@ -5,6 +5,7 @@ const {
   getAllCampaigns, 
   getCampaignById, 
   createCampaign, 
+  createCampaignBatch,
   updateCampaign, 
   deleteCampaign, 
   sendCampaign 
@@ -18,6 +19,9 @@ router.get('/:id', auth, getCampaignById);
 
 // Create campaign
 router.post('/', auth, createCampaign);
+
+// Create campaign with batch processing for large contact lists
+router.post('/batch', auth, createCampaignBatch);
 
 // Update campaign
 router.put('/:id', auth, updateCampaign);
