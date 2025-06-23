@@ -1,5 +1,7 @@
 const Unsubscribe = require('../../models/unsubscribe.model');
-const { getUnsubscribeErrorPage, getUnsubscribeSuccessPage, getServerErrorPage } = require('../../utils/html-templates');
+const getUnsubscribeErrorPage = require('../../utils/html-templates/getUnsubscribeErrorPage');
+const getUnsubscribeSuccessPage = require('../../utils/html-templates/getUnsubscribeSuccessPage');
+const getServerErrorPage = require('../../utils/html-templates/getServerErrorPage');
 
 /**
  * Direct unsubscribe for email recipients (public endpoint, no auth required)

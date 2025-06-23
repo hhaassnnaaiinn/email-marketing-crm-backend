@@ -3,6 +3,8 @@ const AwsSettings = require('../../models/aws-settings.model');
 const Unsubscribe = require('../../models/unsubscribe.model');
 const EmailService = require('../../services/email.service');
 const logEmail = require('../../utils/email-logger/logEmail');
+const replaceMergeTags = require('../../utils/merge-tags/replaceMergeTags');
+const replaceSubjectMergeTags = require('../../utils/merge-tags/replaceSubjectMergeTags');
 
 /**
  * Send a campaign
@@ -53,9 +55,13 @@ const sendCampaign = async (req, res) => {
       const batch = validContacts.slice(i, i + batchSize);
       const batchPromises = batch.map(async (contact) => {
         try {
+          // Replace merge tags in subject and content with contact data
+          const personalizedSubject = replaceSubjectMergeTags(campaign.subject, contact);
+          const personalizedHtml = replaceMergeTags(campaign.template.body, contact);
+
           // Add personalized unsubscribe link for each contact
           const unsubscribeLink = `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/email/unsubscribe?email=${encodeURIComponent(contact.email)}&contactId=${contact._id}`;
-          const htmlWithUnsubscribe = campaign.template.body + `
+          const htmlWithUnsubscribe = personalizedHtml + `
             <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666; text-align: center;">
               <p style="margin: 0; padding: 10px 0;">
                 You received this email because you're subscribed to our mailing list.
@@ -73,7 +79,7 @@ const sendCampaign = async (req, res) => {
 
           const result = await EmailService.sendEmail({
             to: contact.email,
-            subject: campaign.subject,
+            subject: personalizedSubject,
             html: htmlWithUnsubscribe,
             awsSettings,
           });
@@ -82,7 +88,7 @@ const sendCampaign = async (req, res) => {
           await logEmail({
             user: req.user.userId,
             to: contact.email,
-            subject: campaign.subject,
+            subject: personalizedSubject,
             status: 'sent',
             messageId: result.messageId,
             type: 'bulk',

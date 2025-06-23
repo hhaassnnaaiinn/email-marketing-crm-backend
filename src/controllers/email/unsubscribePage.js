@@ -1,5 +1,8 @@
 const Unsubscribe = require('../../models/unsubscribe.model');
-const { getUnsubscribeErrorPage, getUnsubscribeConfirmationPage, getAlreadyUnsubscribedPage, getServerErrorPage } = require('../../utils/html-templates');
+const getUnsubscribeErrorPage = require('../../utils/html-templates/getUnsubscribeErrorPage');
+const getUnsubscribeConfirmationPage = require('../../utils/html-templates/getUnsubscribeConfirmationPage');
+const getAlreadyUnsubscribedPage = require('../../utils/html-templates/getAlreadyUnsubscribedPage');
+const getServerErrorPage = require('../../utils/html-templates/getServerErrorPage');
 
 /**
  * Serve unsubscribe confirmation page (public endpoint, no auth required)
