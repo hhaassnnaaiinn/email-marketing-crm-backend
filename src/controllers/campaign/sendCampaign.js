@@ -2,7 +2,7 @@ const Campaign = require('../../models/campaign.model');
 const AwsSettings = require('../../models/aws-settings.model');
 const Unsubscribe = require('../../models/unsubscribe.model');
 const EmailService = require('../../services/email.service');
-const { logEmail } = require('../../utils/email-logger');
+const logEmail = require('../../utils/email-logger/logEmail');
 
 /**
  * Send a campaign
